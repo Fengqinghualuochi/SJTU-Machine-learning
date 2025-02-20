@@ -1,0 +1,60 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# 生成一个包含异常值的二维数据集
+np.random.seed(42)
+
+# 正常数据，均值为50，标准差为10
+X = np.random.normal(loc=50, scale=10, size=200)
+Y = np.random.normal(loc=50, scale=10, size=200)
+
+# 添加一些异常值
+X_outliers = np.array([60, 62, 65]) 
+Y_outliers = np.array([60, 61, 64])
+X = np.concatenate([X, X_outliers])
+Y = np.concatenate([Y, Y_outliers])
+
+# 计算X和Y的均值和标准差
+mean_X = np.mean(X)
+std_dev_X = np.std(X)
+mean_Y = np.mean(Y)
+std_dev_Y = np.std(Y)
+
+# 计算 X 和 Y 的 3σ 区间
+lower_bound_X = mean_X - 3 * std_dev_X
+upper_bound_X = mean_X + 3 * std_dev_X
+
+lower_bound_Y = mean_Y - 3 * std_dev_Y
+upper_bound_Y = mean_Y + 3 * std_dev_Y
+
+# 找到异常值：超出 3σ 范围的点
+outliers_XY = np.array([(x, y) for x, y in zip(X, Y) 
+                        if x < lower_bound_X or x > upper_bound_X or y < lower_bound_Y or y > upper_bound_Y])
+
+# 可视化数据和异常值
+plt.figure(figsize=(10, 6))
+
+# 绘制正常数据点
+plt.scatter(X, Y, label='正常数据', color='blue', alpha=0.6)
+
+# 绘制异常值
+plt.scatter(outliers_XY[:, 0], outliers_XY[:, 1], label='异常值', color='red', marker='x')
+
+# 绘制 3σ 区间的边界
+plt.axhline(y=lower_bound_Y, color='green', linestyle='--', label=f'Y 3σ 下界: {lower_bound_Y:.2f}')
+plt.axhline(y=upper_bound_Y, color='green', linestyle='--', label=f'Y 3σ 上界: {upper_bound_Y:.2f}')
+plt.axvline(x=lower_bound_X, color='purple', linestyle='--', label=f'X 3σ 下界: {lower_bound_X:.2f}')
+plt.axvline(x=upper_bound_X, color='purple', linestyle='--', label=f'X 3σ 上界: {upper_bound_X:.2f}')
+
+# 添加标题和标签
+plt.title("二维数据集 3σ原则区分异常值")
+plt.xlabel("X")
+plt.ylabel("Y")
+plt.legend()
+
+# 显示图形
+plt.show()
+
+# 输出检测到的异常值
+print("检测到的异常值：")
+print(outliers_XY)
