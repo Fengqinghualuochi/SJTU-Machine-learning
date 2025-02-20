@@ -1,0 +1,28 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# 设置中文字体（适用于支持微软雅黑的环境）
+plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+
+# 生成随机数据
+np.random.seed(42)
+data = np.random.normal(loc=50, scale=10, size=200)  # 均值50，标准差10，样本数200
+
+# 创建画布
+plt.figure(figsize=(12, 5))
+
+# 绘制箱线图
+plt.subplot(1, 2, 1)
+sns.boxplot(y=data, color="skyblue")
+plt.title("箱线图")
+
+# 绘制密度图
+plt.subplot(1, 2, 2)
+sns.kdeplot(data, shade=True, color="red")
+plt.title("密度图")
+
+# 显示图形
+plt.tight_layout()
+plt.show()
