@@ -1,0 +1,40 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# 设置字体为微软雅黑，确保中文正常显示
+plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+
+# 生成一个简单的线性数据集：y = 2x + 1
+np.random.seed(42)  # 为了可重复性，设置随机种子
+X = np.linspace(0, 10, 100)  # 生成 100 个从 0 到 10 的数据点
+y = 2 * X + 1 + np.random.randn(100) * 2  # 加上一些噪声
+
+# 打乱数据集
+def split_data(X, y, test_size=0.2):
+    # 计算测试集的大小
+    total_size = len(X)
+    test_size = int(total_size * test_size)
+    
+    # 随机打乱数据索引
+    indices = np.random.permutation(total_size)
+    
+    # 划分训练集和测试集
+    X_train, X_test = X[indices[:-test_size]], X[indices[-test_size:]]
+    y_train, y_test = y[indices[:-test_size]], y[indices[-test_size:]]
+    
+    return X_train, X_test, y_train, y_test
+# 使用上述函数划分数据集
+X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.2)
+# 可视化数据划分
+plt.scatter(X, y, label="所有数据", color="blue", alpha=0.5)
+plt.scatter(X_train, y_train, label="训练集", color="green", alpha=0.7)
+plt.scatter(X_test, y_test, label="测试集", color="red", alpha=0.7)
+plt.xlabel("X")
+plt.ylabel("y")
+plt.legend()
+plt.title("数据集划分示例")
+plt.show()
+# 打印训练集和测试集的大小
+print(f"训练集大小: {len(X_train)}")
+print(f"测试集大小: {len(X_test)}")
