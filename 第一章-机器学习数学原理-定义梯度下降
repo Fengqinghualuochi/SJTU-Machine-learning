@@ -1,0 +1,40 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# 定义损失函数 f(x) 和它的梯度（导数）
+def loss_function(x):
+    return x**2 + 4*x + 4
+
+def gradient(x):
+    return 2*x + 4  # 对 f(x) = x^2 + 4x + 4 求导得到 2x + 4
+
+# 梯度下降算法
+def gradient_descent(learning_rate=0.1, epochs=100, initial_x=10):
+    x = initial_x  # 初始化 x
+    history = [x]  # 记录每次迭代的 x 值
+    
+    for epoch in range(epochs):
+        grad = gradient(x)  # 计算梯度
+        x = x - learning_rate * grad  # 更新参数
+        history.append(x)
+    
+    return x, history  # 返回最终的参数和每次迭代的历史
+
+# 设置参数并运行梯度下降
+final_x, history = gradient_descent(learning_rate=0.1, epochs=50, initial_x=10)
+
+# 打印结果
+print(f"最终的 x 值：{final_x}")
+print(f"最终的损失值：{loss_function(final_x)}")
+
+# 可视化梯度下降过程
+x_values = np.linspace(-10, 10, 100)
+y_values = loss_function(x_values)
+
+plt.plot(x_values, y_values, label="Loss Function: $f(x)=x^2+4x+4$")
+plt.scatter(history, [loss_function(x) for x in history], color="red", label="Gradient Descent Path")
+plt.xlabel("x")
+plt.ylabel("f(x)")
+plt.title("Gradient Descent Optimization")
+plt.legend()
+plt.show()
