@@ -1,60 +1,47 @@
-import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.dates import DateFormatter
 
-# 生成一个包含异常值的二维数据集
-np.random.seed(42)
+# 设置字体为微软雅黑
+plt.rcParams['font.family'] = 'Microsoft YaHei'
 
-# 正常数据，均值为50，标准差为10
-X = np.random.normal(loc=50, scale=10, size=200)
-Y = np.random.normal(loc=50, scale=10, size=200)
+# 读取Excel文件，指定时间列（timestamp）作为索引，并将其解析为日期格式
+file_path = r'C:\Users\Admin\Desktop\异常数据.xlsx'  # 文件路径
+df = pd.read_excel(file_path, parse_dates=['timestamp'], index_col='timestamp')
 
-# 添加一些异常值
-X_outliers = np.array([60, 62, 65]) 
-Y_outliers = np.array([60, 61, 64])
-X = np.concatenate([X, X_outliers])
-Y = np.concatenate([Y, Y_outliers])
+# 提取数据列 'Active_Power'
+data = df['Active_Power']
 
-# 计算X和Y的均值和标准差
-mean_X = np.mean(X)
-std_dev_X = np.std(X)
-mean_Y = np.mean(Y)
-std_dev_Y = np.std(Y)
+# 计算均值和标准差
+mean = data.mean()
+std_dev = data.std()
 
-# 计算 X 和 Y 的 3σ 区间
-lower_bound_X = mean_X - 3 * std_dev_X
-upper_bound_X = mean_X + 3 * std_dev_X
+# 计算异常值的阈值（3σ法）
+upper_bound = mean + 3 * std_dev
 
-lower_bound_Y = mean_Y - 3 * std_dev_Y
-upper_bound_Y = mean_Y + 3 * std_dev_Y
+# 检测异常值
+outliers = data[(data > upper_bound)]
 
-# 找到异常值：超出 3σ 范围的点
-outliers_XY = np.array([(x, y) for x, y in zip(X, Y) 
-                        if x < lower_bound_X or x > upper_bound_X or y < lower_bound_Y or y > upper_bound_Y])
-
-# 可视化数据和异常值
+# 可视化结果
 plt.figure(figsize=(10, 6))
 
-# 绘制正常数据点
-plt.scatter(X, Y, label='正常数据', color='blue', alpha=0.6)
+# 绘制时序数据
+plt.plot(data.index, data, label='时序功率数据', color='blue')
 
-# 绘制异常值
-plt.scatter(outliers_XY[:, 0], outliers_XY[:, 1], label='异常值', color='red', marker='x')
+# 标记异常值
+plt.scatter(outliers.index, outliers, color='red', label='异常值点', zorder=5)
 
-# 绘制 3σ 区间的边界
-plt.axhline(y=lower_bound_Y, color='green', linestyle='--', label=f'Y 3σ 下界: {lower_bound_Y:.2f}')
-plt.axhline(y=upper_bound_Y, color='green', linestyle='--', label=f'Y 3σ 上界: {upper_bound_Y:.2f}')
-plt.axvline(x=lower_bound_X, color='purple', linestyle='--', label=f'X 3σ 下界: {lower_bound_X:.2f}')
-plt.axvline(x=upper_bound_X, color='purple', linestyle='--', label=f'X 3σ 上界: {upper_bound_X:.2f}')
+# 绘制3σ法界定的上边界
+plt.axhline(upper_bound, color='red', linestyle='--', label=f'3σ边界 ({upper_bound:.2f} kW)')
 
 # 添加标题和标签
-plt.title("二维数据集 3σ原则区分异常值")
-plt.xlabel("X")
-plt.ylabel("Y")
+plt.title('3σ法实现异常值辨识', fontsize=14)
+plt.ylabel('功率/kW', fontsize=12)
 plt.legend()
 
-# 显示图形
-plt.show()
+# 格式化x轴显示为小时和分钟
+plt.gca().xaxis.set_major_formatter(DateFormatter('%H:%M'))
 
-# 输出检测到的异常值
-print("检测到的异常值：")
-print(outliers_XY)
+# 显示图形
+plt.tight_layout()
+plt.show()
