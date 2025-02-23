@@ -1,0 +1,49 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.dates import DateFormatter
+
+# 设置字体为微软雅黑
+plt.rcParams['font.family'] = 'Microsoft YaHei'
+
+# 读取Excel文件，指定时间列（timestamp）作为索引，并将其解析为日期格式
+file_path = r'C:\Users\Admin\Desktop\缺失数据.xlsx'  # 文件路径
+df = pd.read_excel(file_path, parse_dates=['timestamp'], index_col='timestamp')
+
+# 识别缺失值
+missing_indices = df[df['Active_Power'].isna()].index
+
+# 用来存储插补值的时间点
+imputed_points = []
+
+# 对缺失值进行插补
+for idx in missing_indices:
+    # 获取前两个和后五个数据点
+    pre_points = df['Active_Power'].iloc[df.index.get_loc(idx)-2:df.index.get_loc(idx)]
+    post_points = df['Active_Power'].iloc[df.index.get_loc(idx)+1:df.index.get_loc(idx)+6]
+    
+    # 计算平均值并进行插补
+    new_value = (pre_points.mean() + post_points.mean()) / 2
+    df.at[idx, 'Active_Power'] = new_value
+    
+    # 记录插补点的时间
+    imputed_points.append((idx, new_value))
+
+# 可视化结果
+plt.figure(figsize=(10, 6))
+plt.plot(df.index, df['Active_Power'], label='功率', color='blue')
+
+# 标记插补的点
+imputed_times, imputed_values = zip(*imputed_points)  # 分离时间和对应的插补值
+plt.scatter(imputed_times, imputed_values, color='red', label='插补值', zorder=5)
+
+# 添加标题和标签
+plt.title('基于平均值的缺失值插补', fontsize=14)
+plt.ylabel('功率/kW', fontsize=12)
+
+# 格式化x轴显示为小时和分钟
+plt.gca().xaxis.set_major_formatter(DateFormatter('%H:%M'))
+
+# 显示图形
+plt.legend()
+plt.tight_layout()
+plt.show()
