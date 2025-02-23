@@ -1,0 +1,44 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.dates import DateFormatter
+
+# 设置字体为微软雅黑
+plt.rcParams['font.family'] = 'Microsoft YaHei'
+
+# 读取Excel文件，指定时间列（timestamp）作为索引，并将其解析为日期格式
+file_path = r'C:\Users\Admin\Desktop\缺失数据.xlsx'  # 文件路径
+df = pd.read_excel(file_path, parse_dates=['timestamp'], index_col='timestamp')
+
+# 记录插补的缺失值
+imputed_points_poly = []
+
+# 使用多项式插值法对缺失值进行插补（这里使用2阶多项式插值）
+df['Active_Power_poly'] = df['Active_Power'].interpolate(method='polynomial', order=2)
+
+# 识别缺失值并记录插补点
+missing_indices = df[df['Active_Power'].isna()].index
+for idx in missing_indices:
+    imputed_points_poly.append((idx, df.at[idx, 'Active_Power_poly']))
+
+# 可视化结果
+plt.figure(figsize=(10, 6))
+
+# 绘制原始数据和多项式插值后的数据
+plt.plot(df.index, df['Active_Power'], label='原始功率', color='blue', alpha=0.5)
+plt.plot(df.index, df['Active_Power_poly'], label='多项式插值后功率', color='green')
+
+# 标记插补的点（红色点）
+imputed_times_poly, imputed_values_poly = zip(*imputed_points_poly)  # 分离时间和对应的插补值
+plt.scatter(imputed_times_poly, imputed_values_poly, color='red', label='插补值', zorder=5)
+
+# 添加标题和标签
+plt.title('基于多项式插值法的缺失值插补', fontsize=14)
+plt.ylabel('功率/kW', fontsize=12)
+
+# 格式化x轴显示为小时和分钟
+plt.gca().xaxis.set_major_formatter(DateFormatter('%H:%M'))
+
+# 显示图形
+plt.legend()
+plt.tight_layout()
+plt.show()
