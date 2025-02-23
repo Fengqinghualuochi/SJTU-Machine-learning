@@ -1,0 +1,51 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.dates import DateFormatter
+from sklearn.svm import OneClassSVM
+
+# 设置字体为微软雅黑
+plt.rcParams['font.family'] = 'Microsoft YaHei'
+
+# 读取Excel文件，指定时间列（timestamp）作为索引，并将其解析为日期格式
+file_path = r'C:\Users\Admin\Desktop\异常数据.xlsx'  # 文件路径
+df = pd.read_excel(file_path, parse_dates=['timestamp'], index_col='timestamp')
+
+# 提取数据列 'Active_Power' 和时间特征（小时）
+data = df[['Active_Power']]
+data['hour'] = df.index.hour  # 提取小时信息，作为额外的特征
+
+# 将数据转换为二维数组（包括原始数据和时间特征）
+data_values = data.values  # 包含了 Active_Power 和 hour 两个特征
+
+# 初始化 One-Class SVM 模型
+model = OneClassSVM(nu=0.1, kernel="rbf", gamma="scale")
+
+# 训练 One-Class SVM 模型
+model.fit(data_values)
+
+# 检测异常值，返回1表示正常，-1表示异常
+predictions = model.predict(data_values)
+
+# 提取异常值（-1表示异常）
+outliers = df[predictions == -1]
+
+# 可视化结果
+plt.figure(figsize=(10, 6))
+
+# 绘制时序数据
+plt.plot(df.index, df['Active_Power'], label='时序功率数据', color='blue')
+
+# 标记异常值
+plt.scatter(outliers.index, outliers['Active_Power'], color='red', label='异常值点', zorder=5)
+
+# 添加标题和标签
+plt.title('One-Class SVM 实现异常值辨识 (时间特征)', fontsize=14)
+plt.ylabel('功率/kW', fontsize=12)
+plt.legend()
+
+# 格式化x轴显示为小时和分钟
+plt.gca().xaxis.set_major_formatter(DateFormatter('%H:%M'))
+
+# 显示图形
+plt.tight_layout()
+plt.show()
