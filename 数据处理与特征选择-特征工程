@@ -1,0 +1,25 @@
+import pandas as pd
+
+# 读取Excel文件，指定时间列（timestamp）作为索引，并将其解析为日期格式
+file_path = r'C:\Users\Admin\Desktop\特征工程数据集.xlsx'  # 文件路径
+df = pd.read_excel(file_path, parse_dates=['timestamp'], index_col='timestamp')
+
+# 提取日期和小时信息
+df['日期'] = df.index.date
+df['小时'] = df.index.hour
+
+# 筛选每天 8:00 到 16:00 之间的数据
+df_filtered = df[(df['小时'] >= 8) & (df['小时'] <= 16)]
+
+# 计算每日的统计特征
+daily_stats = df_filtered.groupby('日期')['Active_Power'].agg(
+    峰值='max',               # 峰值
+    谷值='min',                # 谷值
+    均值='mean'                # 均值
+)
+
+# 计算峰谷比
+daily_stats['峰谷比'] = daily_stats['峰值'] / daily_stats['谷值']
+
+# 展示前几行
+daily_stats.head()
