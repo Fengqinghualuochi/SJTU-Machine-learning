@@ -1,0 +1,20 @@
+y_true = [1, 0, 1, 1, 0, 1, 0, 0, 1, 0]  # 真实标签（假设）
+y_pred = [1, 0, 1, 0, 0, 1, 1, 0, 1, 1]  # 预测标签（假设）
+
+# 计算混淆矩阵的各个值
+TP = sum((y_true[i] == 1) and (y_pred[i] == 1) for i in range(len(y_true)))  # 真正例
+TN = sum((y_true[i] == 0) and (y_pred[i] == 0) for i in range(len(y_true)))  # 真负例
+FP = sum((y_true[i] == 0) and (y_pred[i] == 1) for i in range(len(y_true)))  # 假正例
+FN = sum((y_true[i] == 1) and (y_pred[i] == 0) for i in range(len(y_true)))  # 假负例
+
+# 计算准确率、精确率、召回率和F1分数
+accuracy = (TP + TN) / (TP + TN + FP + FN)  # 准确率
+precision = TP / (TP + FP) if TP + FP > 0 else 0  # 精确率
+recall = TP / (TP + FN) if TP + FN > 0 else 0  # 召回率
+f1_score = 2 * (precision * recall) / (precision + recall) if precision + recall > 0 else 0  # F1分数
+
+# 输出结果
+print(f"准确率 (Accuracy): {accuracy:.4f}")
+print(f"精确率 (Precision): {precision:.4f}")
+print(f"召回率 (Recall): {recall:.4f}")
+print(f"F1分数 (F1-score): {f1_score:.4f}")
