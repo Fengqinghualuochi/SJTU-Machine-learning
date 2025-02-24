@@ -1,0 +1,43 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+from matplotlib.dates import DateFormatter
+
+# 设置字体为微软雅黑
+plt.rcParams['font.family'] = 'Microsoft YaHei'
+
+# 读取Excel文件，指定时间列（timestamp）作为索引，并将其解析为日期格式
+file_path = r'C:\Users\Admin\Desktop\归一化数据集.xlsx'  # 文件路径
+df = pd.read_excel(file_path, parse_dates=['timestamp'], index_col='timestamp')
+
+# 获取原始数据
+original_data = df['Active_Power'].values.reshape(-1, 1)
+
+# 使用Min-Max归一化
+scaler = MinMaxScaler()
+normalized_data = scaler.fit_transform(original_data)
+
+# 将归一化后的数据添加到DataFrame
+df['Normalized_Active_Power'] = normalized_data
+
+# 可视化结果
+plt.figure(figsize=(10, 6))
+
+# 绘制原始数据
+plt.plot(df.index, df['Active_Power'], label='原始功率', color='blue')
+
+# 绘制归一化后的数据
+plt.plot(df.index, df['Normalized_Active_Power'], label='归一化后功率', color='red')
+
+# 添加标题和标签
+plt.title('功率数据的Min-Max归一化', fontsize=14)
+plt.xlabel('时间', fontsize=12)
+plt.ylabel('功率/kW (归一化前与归一化后)', fontsize=12)
+
+# 格式化x轴显示为小时和分钟
+plt.gca().xaxis.set_major_formatter(DateFormatter('%H:%M'))
+
+# 显示图形
+plt.legend()
+plt.tight_layout()
+plt.show()
