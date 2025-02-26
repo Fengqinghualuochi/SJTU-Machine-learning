@@ -1,40 +1,39 @@
+import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
-# 设置字体为微软雅黑，确保中文正常显示
-plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']
-plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+# 读取CSV文件，指定时间列（timestamp）作为索引，并将其解析为日期格式
+file_path = r'C:\Users\Admin\Desktop\85-Site_DKA-M7_A-Phase.csv'  # 文件路径
+df = pd.read_csv(file_path, parse_dates=['timestamp'], index_col='timestamp')
 
-# 生成一个简单的线性数据集：y = 2x + 1
-np.random.seed(42)  # 为了可重复性，设置随机种子
-X = np.linspace(0, 10, 100)  # 生成 100 个从 0 到 10 的数据点
-y = 2 * X + 1 + np.random.randn(100) * 2  # 加上一些噪声
+# 提取日期信息
+df['日期'] = df.index.date
 
-# 打乱数据集
-def split_data(X, y, test_size=0.2):
-    # 计算测试集的大小
-    total_size = len(X)
-    test_size = int(total_size * test_size)
-    
-    # 随机打乱数据索引
-    indices = np.random.permutation(total_size)
-    
-    # 划分训练集和测试集
-    X_train, X_test = X[indices[:-test_size]], X[indices[-test_size:]]
-    y_train, y_test = y[indices[:-test_size]], y[indices[-test_size:]]
-    
-    return X_train, X_test, y_train, y_test
-# 使用上述函数划分数据集
-X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.2)
-# 可视化数据划分
-plt.scatter(X, y, label="所有数据", color="blue", alpha=0.5)
-plt.scatter(X_train, y_train, label="训练集", color="green", alpha=0.7)
-plt.scatter(X_test, y_test, label="测试集", color="red", alpha=0.7)
-plt.xlabel("X")
-plt.ylabel("y")
-plt.legend()
-plt.title("数据集划分示例")
-plt.show()
-# 打印训练集和测试集的大小
-print(f"训练集大小: {len(X_train)}")
-print(f"测试集大小: {len(X_test)}")
+# 按日期分组
+grouped = df.groupby('日期')
+
+# 获取日期列表，并转换为列表类型
+dates = list(grouped.groups.keys())
+
+# 按比例划分数据集：70% 训练集，15% 验证集，15% 测试集
+train_size = int(len(dates) * 0.7)
+val_size = int(len(dates) * 0.15)
+
+# 划分日期
+train_dates = dates[:train_size]
+val_dates = dates[train_size:train_size + val_size]
+test_dates = dates[train_size + val_size:]
+
+# 提取训练集、验证集和测试集数据
+train_data = df[df['日期'].isin(train_dates)]
+val_data = df[df['日期'].isin(val_dates)]
+test_data = df[df['日期'].isin(test_dates)]
+
+# 显示划分后的数据集的大小
+print(f"训练集大小: {train_data.shape}")
+print(f"验证集大小: {val_data.shape}")
+print(f"测试集大小: {test_data.shape}")
+
+# 你也可以将数据保存为不同的CSV文件
+train_data.to_csv(r'C:\Users\Admin\Desktop\train_data.csv')
+val_data.to_csv(r'C:\Users\Admin\Desktop\val_data.csv')
+test_data.to_csv(r'C:\Users\Admin\Desktop\test_data.csv')
