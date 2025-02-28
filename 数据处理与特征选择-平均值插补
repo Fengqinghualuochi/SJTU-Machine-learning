@@ -18,7 +18,7 @@ imputed_points = []
 # 对缺失值进行插补
 for idx in missing_indices:
     # 获取前两个和后五个数据点
-    pre_points = df['Active_Power'].iloc[df.index.get_loc(idx)-2:df.index.get_loc(idx)]
+    pre_points = df['Active_Power'].iloc[df.index.get_loc(idx)-5:df.index.get_loc(idx)]
     post_points = df['Active_Power'].iloc[df.index.get_loc(idx)+1:df.index.get_loc(idx)+6]
     
     # 计算平均值并进行插补
