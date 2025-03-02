@@ -1,0 +1,75 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import numpy as np
+
+# 设置 Matplotlib 字体
+plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 使用微软雅黑
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+
+# 加载数据集
+file_path = "C:\\Users\\Admin\\Desktop\\预测数据集.xlsx"
+sheet_name = '85-Site_DKA-M7_A-Phase'
+df = pd.read_excel(file_path, sheet_name=sheet_name)
+
+# 确保数据按时间排序
+df = df.sort_values(by='timestamp')
+
+# 生成前一个时间点的出力作为特征
+df['Previous_Active_Power'] = df['Active_Power'].shift(1)
+
+# 删除包含 NaN 的行（第一行因 shift 操作会产生 NaN）
+df = df.dropna()
+
+# 定义特征和目标变量
+X = df[['Previous_Active_Power']]
+y = df['Active_Power']
+
+# 划分训练集和测试集
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, shuffle=False)
+
+# 训练线性回归模型
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# 线性回归方程
+coef = model.coef_[0]  # 斜率
+intercept = model.intercept_  # 截距
+print(f"线性回归方程: y = {coef:.6f} * x + {intercept:.6f}")
+
+# 进行预测
+y_pred = model.predict(X_test)
+
+# 计算误差指标
+mae = mean_absolute_error(y_test, y_pred)
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+r2 = r2_score(y_test, y_pred)
+
+print(f"平均绝对误差 (MAE): {mae}")
+print(f"均方根误差 (RMSE): {rmse}")
+print(f"决定系数 (R²): {r2}")
+
+# 选择 9 月 23 日至 9 月 30 日的数据进行可视化
+df['timestamp'] = pd.to_datetime(df['timestamp'])
+selected_df = df[(df['timestamp'] >= '2009-09-23') & (df['timestamp'] <= '2009-09-30')]
+
+# 重新计算预测值（确保索引匹配）
+selected_df['Previous_Active_Power'] = selected_df['Active_Power'].shift(1)
+selected_df = selected_df.dropna()
+selected_X = selected_df[['Previous_Active_Power']]
+predicted_selected = model.predict(selected_X)
+
+# 绘制真实值与预测值
+plt.figure(figsize=(10, 5))
+plt.plot(selected_df['timestamp'], selected_df['Active_Power'], label='真实功率', linestyle='-', marker='o', markersize=3)
+plt.plot(selected_df['timestamp'], predicted_selected, label='预测出力', linestyle='--', marker='s', markersize=3)
+plt.xlabel("时间")
+plt.ylabel("功率 (kW)")
+plt.legend(loc='lower center', bbox_to_anchor=(0.5, -0.25), ncol=2)
+
+# 保存为矢量图（SVG 格式）
+output_path = "C:\\Users\\Admin\\Desktop\\预测结果.svg"
+plt.savefig(output_path, format='svg', bbox_inches='tight')
+plt.show()
