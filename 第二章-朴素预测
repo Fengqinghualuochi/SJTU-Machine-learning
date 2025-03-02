@@ -1,0 +1,30 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+# 读取 Excel 文件
+file_path = r"C:\Users\Admin\Desktop\预测数据集.xlsx"  # 请确保路径正确
+sheet_name = "85-Site_DKA-M7_A-Phase"  # 指定Sheet名称
+
+# 读取数据
+df = pd.read_excel(file_path, sheet_name=sheet_name)
+
+# 按时间排序，防止数据混乱
+df_sorted = df.sort_values(by="timestamp").reset_index(drop=True)
+
+# 生成预测值（上一个时间点的功率作为下一个时间点的预测）
+df_sorted["Predicted_Power"] = df_sorted["Active_Power"].shift(1)
+
+# 删除第一行（因无预测值）
+df_sorted = df_sorted.dropna().reset_index(drop=True)
+
+# 计算评估指标
+rmse = np.sqrt(mean_squared_error(df_sorted["Active_Power"], df_sorted["Predicted_Power"]))
+mae = mean_absolute_error(df_sorted["Active_Power"], df_sorted["Predicted_Power"])
+r2 = r2_score(df_sorted["Active_Power"], df_sorted["Predicted_Power"])
+
+# 打印评估指标
+print(f"RMSE（均方根误差）: {rmse:.4f}")
+print(f"MAE（平均绝对误差）: {mae:.4f}")
+print(f"R²（决定系数）: {r2:.4f}")
