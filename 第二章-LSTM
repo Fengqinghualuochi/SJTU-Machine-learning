@@ -70,7 +70,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 start_time = time.time()
 
 # 训练模型
-epochs = 500
+epochs = 300
 loss_history = []  # 记录损失变化
 for epoch in range(epochs):
     model.train()
