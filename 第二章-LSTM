@@ -6,6 +6,7 @@ import torch.optim as optim
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import numpy as np
+import time
 
 # 设置 Matplotlib 字体
 plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 使用微软雅黑
@@ -65,6 +66,9 @@ model = LSTMModel()
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
+# 记录训练开始时间
+start_time = time.time()
+
 # 训练模型
 epochs = 500
 loss_history = []  # 记录损失变化
@@ -79,12 +83,17 @@ for epoch in range(epochs):
     if (epoch+1) % 10 == 0:
         print(f"Epoch [{epoch+1}/{epochs}], Loss: {loss.item():.6f}")
 
+# 记录训练结束时间
+end_time = time.time()
+training_time = end_time - start_time
+print(f"模型训练总耗时: {training_time:.2f} 秒")
+
 # 绘制损失变化
 plt.figure(figsize=(8, 5))
 plt.plot(range(1, epochs+1), loss_history, marker='o', linestyle='-', label='训练损失')
 plt.xlabel("训练轮数")
 plt.ylabel("损失值")
-plt.title("训练损失变化趋势")
+plt.title("LSTM 训练损失变化趋势")
 plt.legend()
 plt.grid()
 plt.savefig("C:\\Users\\Admin\\Desktop\\LSTM训练损失.svg", format='svg', bbox_inches='tight')
