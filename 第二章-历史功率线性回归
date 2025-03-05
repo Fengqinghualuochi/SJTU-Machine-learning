@@ -1,0 +1,88 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split
+
+# 设置 Matplotlib 字体
+plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 使用微软雅黑
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+
+# 加载数据集
+file_path = "C:\\Users\\Admin\\Desktop\\预测数据集.xlsx"
+sheet_name = '85-Site_DKA-M7_A-Phase'
+df = pd.read_excel(file_path, sheet_name=sheet_name)
+
+# 确保数据按时间排序
+df = df.sort_values(by='timestamp')
+
+# 仅使用 Active_Power 作为特征
+data = df[['Active_Power']].values
+
+# 归一化数据
+scaler = MinMaxScaler()
+data = scaler.fit_transform(data)
+
+# 创建线性回归数据集（使用过去 8 个点预测未来 4 个点）
+def create_sequences(data, past_steps=8, future_steps=4):
+    sequences = []
+    labels = []
+    for i in range(len(data) - past_steps - future_steps + 1):
+        sequences.append(data[i:i+past_steps].flatten())  # 过去 8 个点作为特征
+        labels.append(data[i+past_steps:i+past_steps+future_steps].flatten())  # 未来 4 个点作为标签
+    return np.array(sequences), np.array(labels)
+
+# 生成数据
+X, y = create_sequences(data, past_steps=8, future_steps=4)
+
+# 划分训练集和测试集
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, shuffle=False)
+
+# 定义线性回归模型
+model = LinearRegression()
+
+# 训练模型
+model.fit(X_train, y_train)
+
+# 获取线性回归方程系数和截距
+coefficients = model.coef_  # 形状 (4, 8)
+intercepts = model.intercept_  # 形状 (4,)
+
+# 打印线性回归方程
+for i in range(4):
+    equation = " + ".join([f"{coefficients[i][j]:.6f} * X{j+1}" for j in range(8)])
+    equation = f"Y{i+1} = {equation} + {intercepts[i]:.6f}"
+    print(f"线性回归方程 {i+1}: {equation}")
+
+# 进行预测
+y_pred = model.predict(X_test)
+
+# 反归一化预测值和真实值
+y_test_actual = scaler.inverse_transform(y_test)
+y_pred_actual = scaler.inverse_transform(y_pred)
+
+# 计算误差指标
+mae = mean_absolute_error(y_test_actual, y_pred_actual)
+rmse = np.sqrt(mean_squared_error(y_test_actual, y_pred_actual))
+r2 = r2_score(y_test_actual, y_pred_actual)
+
+print(f"平均绝对误差 (MAE): {mae}")
+print(f"均方根误差 (RMSE): {rmse}")
+print(f"决定系数 (R²): {r2}")
+
+# 绘制真实值与预测值对比图
+plt.figure(figsize=(10, 5))
+plt.plot(y_test_actual.flatten(), label='真实值', linestyle='-', marker='o', markersize=3)
+plt.plot(y_pred_actual.flatten(), label='预测值', linestyle='--', marker='s', markersize=3)
+plt.xlabel("时间步")
+plt.ylabel("功率 (kW)")
+plt.title("线性回归预测对比 (8 预测 4)")
+plt.legend()
+plt.grid()
+
+# 保存为矢量图（SVG 格式）
+output_path = "C:\\Users\\Admin\\Desktop\\线性回归预测结果.svg"
+plt.savefig(output_path, format='svg', bbox_inches='tight')
+plt.show()
