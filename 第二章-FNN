@@ -28,17 +28,18 @@ scaler = MinMaxScaler()
 data = scaler.fit_transform(data)
 
 # 创建 FNN 数据集
-def create_sequences(data, seq_length):
+def create_sequences(data, seq_length, pred_length):
     sequences = []
     labels = []
-    for i in range(len(data) - seq_length):
-        sequences.append(data[i:i+seq_length].flatten())  # 展平数据用于 FNN
-        labels.append(data[i+seq_length])
-    return torch.tensor(sequences, dtype=torch.float32), torch.tensor(labels, dtype=torch.float32)
+    for i in range(len(data) - seq_length - pred_length + 1):
+        sequences.append(data[i:i+seq_length])
+        labels.append(data[i+seq_length:i+seq_length+pred_length])
+    return torch.tensor(sequences, dtype=torch.float32), torch.tensor(labels, dtype=torch.float32).squeeze(-1)
 
-# 定义序列长度
-seq_length = 10
-X, y = create_sequences(data, seq_length)
+# 定义输入序列长度和预测长度
+seq_length = 16  # 用过去 16 个点作为输入
+pred_length = 4  # 预测未来 4 个点
+X, y = create_sequences(data, seq_length, pred_length)
 
 # 划分训练集和测试集
 train_size = int(len(X) * 0.8)
@@ -47,14 +48,15 @@ y_train, y_test = y[:train_size], y[train_size:]
 
 # 定义 FNN 模型
 class FNNModel(nn.Module):
-    def __init__(self, input_size=seq_length, hidden_size=64, output_size=1):
+    def __init__(self, input_size=16, hidden_size=64, output_size=4):
         super(FNNModel, self).__init__()
         self.fc1 = nn.Linear(input_size, hidden_size)
+        self.relu = nn.ReLU()
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, output_size)
-        self.relu = nn.ReLU()
     
     def forward(self, x):
+        x = x.view(x.size(0), -1)  # Flatten input
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         x = self.fc3(x)
@@ -69,7 +71,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 start_time = time.time()
 
 # 训练模型
-epochs = 500
+epochs = 50
 loss_history = []  # 记录损失变化
 for epoch in range(epochs):
     model.train()
@@ -104,7 +106,7 @@ print("训练损失变化图已保存至: C:\\Users\\Admin\\Desktop\\FNN训练�
 model.eval()
 predicted = model(X_test).detach().numpy()
 predicted = scaler.inverse_transform(predicted)
-y_test_actual = np.nan_to_num(scaler.inverse_transform(y_test.numpy().reshape(-1, 1)))
+y_test_actual = np.nan_to_num(scaler.inverse_transform(y_test.numpy().reshape(-1, 4)))
 
 # 计算误差指标
 mae = mean_absolute_error(y_test_actual, predicted)
@@ -114,16 +116,3 @@ r2 = r2_score(y_test_actual, predicted)
 print(f"平均绝对误差 (MAE): {mae}")
 print(f"均方根误差 (RMSE): {rmse}")
 print(f"决定系数 (R²): {r2}")
-
-# 绘制真实值与预测值对比图
-plt.figure(figsize=(10, 5))
-plt.plot(df['timestamp'].iloc[train_size + seq_length:], y_test_actual, label='真实功率', linestyle='-', marker='o', markersize=3)
-plt.plot(df['timestamp'].iloc[train_size + seq_length:], predicted, label='预测功率', linestyle='--', marker='s', markersize=3)
-plt.xlabel("时间")
-plt.ylabel("功率 (kW)")
-plt.legend(loc='lower center', bbox_to_anchor=(0.5, -0.25), ncol=2)
-
-# 保存为矢量图（SVG 格式）
-output_path = "C:\\Users\\Admin\\Desktop\\FNN预测结果.svg"
-plt.savefig(output_path, format='svg', bbox_inches='tight')
-plt.show()
