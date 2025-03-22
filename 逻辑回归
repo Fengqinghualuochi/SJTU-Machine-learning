@@ -1,0 +1,161 @@
+import os
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader, Subset
+from sklearn.model_selection import train_test_split
+from PIL import Image
+import time
+import matplotlib.pyplot as plt  # 用于绘制损失曲线
+
+# 设置数据集路径
+data_dir = "flower_photos"
+
+# 定义数据变换
+transform = transforms.Compose([
+    transforms.Resize((128, 128)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+])
+
+# 预处理数据集，删除损坏的图片
+def remove_corrupt_images(data_dir):
+    for root, _, files in os.walk(data_dir):
+        for file in files:
+            file_path = os.path.join(root, file)
+            try:
+                img = Image.open(file_path)
+                img.verify()  # 检测图片是否损坏
+            except (IOError, OSError):
+                print(f"Removing corrupted image: {file_path}")
+                os.remove(file_path)  # 删除损坏的图片
+
+# 先运行这个函数，清理数据集
+remove_corrupt_images(data_dir)
+
+# 加载数据集
+dataset = datasets.ImageFolder(root=data_dir, transform=transform)
+
+# 只选择 roses 和 sunflowers
+class_names = ['roses', 'sunflowers']
+class_to_idx = {name: i for i, name in enumerate(class_names)}  # 让 roses=0, sunflowers=1
+
+# 获取 roses 和 sunflowers 的数据索引
+data_indices = [i for i, (_, label) in enumerate(dataset.samples) if dataset.classes[label] in class_names]
+
+# 重新映射 labels
+new_labels = {dataset.class_to_idx['roses']: 0, dataset.class_to_idx['sunflowers']: 1}
+
+# 自定义数据集
+class CustomSubset(torch.utils.data.Dataset):
+    def __init__(self, dataset, indices, label_map):
+        self.dataset = dataset
+        self.indices = indices
+        self.label_map = label_map
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        while True:
+            try:
+                image, label = self.dataset[self.indices[idx]]
+                return image, torch.tensor(self.label_map[label], dtype=torch.float)  # 确保 labels 为 0/1
+            except (OSError, IOError):  # 发现损坏的图片后删除并跳过
+                corrupt_path = self.dataset.samples[self.indices[idx]][0]
+                print(f"Removing corrupted image during training: {corrupt_path}")
+                os.remove(corrupt_path)
+                idx = (idx + 1) % len(self.indices)  # 取下一张图片替代
+
+# 创建子集并重新映射 labels
+subset_dataset = CustomSubset(dataset, data_indices, new_labels)
+
+# 重新划分训练集和测试集
+train_idx, test_idx = train_test_split(range(len(subset_dataset)), test_size=0.2, random_state=42)
+train_subset = Subset(subset_dataset, train_idx)
+test_subset = Subset(subset_dataset, test_idx)
+
+# 重新创建 DataLoader
+train_loader = DataLoader(train_subset, batch_size=32, shuffle=True)
+test_loader = DataLoader(test_subset, batch_size=32, shuffle=False)
+
+# 定义逻辑回归模型
+class LogisticRegressionModel(nn.Module):
+    def __init__(self):
+        super(LogisticRegressionModel, self).__init__()
+        self.flatten = nn.Flatten()
+        self.linear = nn.Linear(128 * 128 * 3, 1)  # 输入图片大小128x128，3通道
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        x = self.flatten(x)
+        x = self.linear(x)
+        x = self.sigmoid(x)
+        return x
+
+# 初始化模型
+model = LogisticRegressionModel()
+criterion = nn.BCELoss()  # 二分类交叉熵损失
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+# 记录每个 epoch 的损失
+losses = []
+
+# 训练模型并计算训练时间
+start_time = time.time()  # 记录训练开始时间
+
+epochs = 50
+for epoch in range(epochs):
+    model.train()
+    total_loss = 0
+    for images, labels in train_loader:
+        labels = labels.float().unsqueeze(1)  # 确保 labels 在 (batch_size, 1) 形状
+        optimizer.zero_grad()
+        outputs = model(images)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item()
+    losses.append(total_loss / len(train_loader))  # 保存每个 epoch 的平均损失
+    print(f"Epoch {epoch+1}, Loss: {total_loss/len(train_loader):.4f}")
+
+# 计算训练总时长
+end_time = time.time()
+training_time = end_time - start_time
+print(f"Total training time: {training_time:.2f} seconds")
+
+# 绘制损失曲线
+plt.plot(range(1, epochs+1), losses)
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training Loss per Epoch')
+plt.show()
+
+# 评估模型并计算各类准确率
+model.eval()
+correct_roses = 0
+correct_sunflowers = 0
+total_roses = 0
+total_sunflowers = 0
+
+with torch.no_grad():
+    for images, labels in test_loader:
+        labels = labels.float().unsqueeze(1)
+        outputs = model(images)
+        predictions = (outputs > 0.5).float()
+
+        # 对每个类别分别计算准确率
+        for i in range(len(labels)):
+            if labels[i] == 0:  # roses
+                total_roses += 1
+                correct_roses += (predictions[i] == labels[i]).item()
+            elif labels[i] == 1:  # sunflowers
+                total_sunflowers += 1
+                correct_sunflowers += (predictions[i] == labels[i]).item()
+
+# 打印每个类别的准确率
+if total_roses > 0:
+    print(f"Roses Accuracy: {correct_roses / total_roses:.4f}")
+if total_sunflowers > 0:
+    print(f"Sunflowers Accuracy: {correct_sunflowers / total_sunflowers:.4f}")
