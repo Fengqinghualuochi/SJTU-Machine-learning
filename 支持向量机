@@ -1,0 +1,129 @@
+import os
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader, Subset
+from sklearn.model_selection import train_test_split
+from PIL import Image
+import time
+import matplotlib.pyplot as plt  # 用于绘制损失曲线
+from sklearn.svm import SVC  # 引入支持向量机（SVM）分类器
+from sklearn.metrics import accuracy_score  # 用于评估分类准确率
+import numpy as np
+
+# 设置数据集路径
+data_dir = "flower_photos"
+
+# 定义数据变换
+transform = transforms.Compose([
+    transforms.Resize((128, 128)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+])
+
+# 预处理数据集，删除损坏的图片
+def remove_corrupt_images(data_dir):
+    for root, _, files in os.walk(data_dir):
+        for file in files:
+            file_path = os.path.join(root, file)
+            try:
+                img = Image.open(file_path)
+                img.verify()  # 检测图片是否损坏
+            except (IOError, OSError):
+                print(f"Removing corrupted image: {file_path}")
+                os.remove(file_path)  # 删除损坏的图片
+
+# 先运行这个函数，清理数据集
+remove_corrupt_images(data_dir)
+
+# 加载数据集
+dataset = datasets.ImageFolder(root=data_dir, transform=transform)
+
+# 类别包括 5 种花卉：daisy, dandelion, roses, sunflowers, tulips
+class_names = ['daisy', 'dandelion', 'roses', 'sunflowers', 'tulips']
+class_to_idx = {name: i for i, name in enumerate(class_names)}
+
+# 获取五种花卉的所有数据索引
+data_indices = [i for i, (_, label) in enumerate(dataset.samples) if dataset.classes[label] in class_names]
+
+# 重新映射 labels
+new_labels = {dataset.class_to_idx[class_name]: idx for idx, class_name in enumerate(class_names)}
+
+# 自定义数据集
+class CustomSubset(torch.utils.data.Dataset):
+    def __init__(self, dataset, indices, label_map):
+        self.dataset = dataset
+        self.indices = indices
+        self.label_map = label_map
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        while True:
+            try:
+                image, label = self.dataset[self.indices[idx]]
+                return image, torch.tensor(self.label_map[label], dtype=torch.long)  # 分类标签为长整型
+            except (OSError, IOError):  # 发现损坏的图片后删除并跳过
+                corrupt_path = self.dataset.samples[self.indices[idx]][0]
+                print(f"Removing corrupted image during training: {corrupt_path}")
+                os.remove(corrupt_path)
+                idx = (idx + 1) % len(self.indices)  # 取下一张图片替代
+
+# 创建子集并重新映射 labels
+subset_dataset = CustomSubset(dataset, data_indices, new_labels)
+
+# 重新划分训练集和测试集
+train_idx, test_idx = train_test_split(range(len(subset_dataset)), test_size=0.2, random_state=42)
+train_subset = Subset(subset_dataset, train_idx)
+test_subset = Subset(subset_dataset, test_idx)
+
+# 重新创建 DataLoader
+train_loader = DataLoader(train_subset, batch_size=32, shuffle=True)
+test_loader = DataLoader(test_subset, batch_size=32, shuffle=False)
+
+# 将数据集转换为 NumPy 数组，以便用于SVM训练
+def convert_to_numpy(dataset):
+    images = []
+    labels = []
+    for img, label in dataset:
+        images.append(img.numpy().flatten())  # 扁平化图片为一维数组
+        labels.append(label.item())  # 获取标签
+    return np.array(images), np.array(labels)
+
+# 准备训练和测试数据
+train_images, train_labels = convert_to_numpy(train_subset)
+test_images, test_labels = convert_to_numpy(test_subset)
+
+# 创建 SVM 分类器
+clf = SVC(kernel='linear', random_state=42)  # 使用高斯AA核的支持向量机
+
+# 训练 SVM 模型
+start_time = time.time()  # 记录训练开始时间
+clf.fit(train_images, train_labels)
+end_time = time.time()
+training_time = end_time - start_time
+print(f"Total training time for SVM model: {training_time:.2f} seconds")
+
+# 预测测试集并计算准确率
+test_predictions = clf.predict(test_images)
+accuracy = accuracy_score(test_labels, test_predictions)
+
+print(f"SVM Test Accuracy: {accuracy:.4f}")
+
+# 评估模型并计算各类准确率
+class_accuracy = {}
+for class_idx, class_name in enumerate(class_names):
+    class_mask = test_labels == class_idx  # 获取该类标签的布尔掩码
+    class_total = np.sum(class_mask)
+    class_correct = np.sum(test_predictions[class_mask] == class_idx)
+    class_accuracy[class_name] = class_correct / class_total if class_total > 0 else 0
+
+# 打印每个类别的准确率
+for class_name, accuracy in class_accuracy.items():
+    print(f"{class_name.capitalize()} Accuracy: {accuracy:.4f}")
+
+# 计算平均准确率
+avg_accuracy = np.mean(list(class_accuracy.values()))
+print(f"Average Accuracy: {avg_accuracy:.4f}")
