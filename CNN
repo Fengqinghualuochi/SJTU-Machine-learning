@@ -1,0 +1,160 @@
+import os
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F  # 导入 torch.nn.functional，便于使用激活函数等
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader, Subset
+from sklearn.model_selection import train_test_split
+from PIL import Image
+import time
+import matplotlib.pyplot as plt
+
+# 设置数据集路径
+data_dir = "flower_photos"
+
+# 定义数据变换
+transform = transforms.Compose([
+    transforms.Resize((128, 128)),  # 将图片调整为128x128
+    transforms.ToTensor(),  # 转换为Tensor
+    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])  # 归一化处理
+])
+
+# 加载数据集
+dataset = datasets.ImageFolder(root=data_dir, transform=transform)
+
+# 类别包括 5 种花卉：daisy, dandelion, roses, sunflowers, tulips
+class_names = ['daisy', 'dandelion', 'roses', 'sunflowers', 'tulips']
+class_to_idx = {name: i for i, name in enumerate(class_names)}
+
+# 获取五种花卉的所有数据索引
+data_indices = [i for i, (_, label) in enumerate(dataset.samples) if dataset.classes[label] in class_names]
+
+# 重新映射 labels
+new_labels = {dataset.class_to_idx[class_name]: idx for idx, class_name in enumerate(class_names)}
+
+# 自定义数据集
+class CustomSubset(torch.utils.data.Dataset):
+    def __init__(self, dataset, indices, label_map):
+        self.dataset = dataset
+        self.indices = indices
+        self.label_map = label_map
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        while True:
+            try:
+                image, label = self.dataset[self.indices[idx]]
+                return image, torch.tensor(self.label_map[label], dtype=torch.long)  # 分类标签为长整型
+            except (OSError, IOError):  # 发现损坏的图片后删除并跳过
+                corrupt_path = self.dataset.samples[self.indices[idx]][0]
+                print(f"Removing corrupted image during training: {corrupt_path}")
+                os.remove(corrupt_path)
+                idx = (idx + 1) % len(self.indices)  # 取下一张图片替代
+
+# 创建子集并重新映射 labels
+subset_dataset = CustomSubset(dataset, data_indices, new_labels)
+
+# 重新划分训练集和测试集
+train_idx, test_idx = train_test_split(range(len(subset_dataset)), test_size=0.2, random_state=42)
+train_subset = Subset(subset_dataset, train_idx)
+test_subset = Subset(subset_dataset, test_idx)
+
+# 重新创建 DataLoader
+train_loader = DataLoader(train_subset, batch_size=32, shuffle=True)
+test_loader = DataLoader(test_subset, batch_size=32, shuffle=False)
+
+# 定义卷积神经网络（CNN）架构
+class CNNModel(nn.Module):
+    def __init__(self):
+        super(CNNModel, self).__init__()
+        
+        # 第一层卷积，输入3个通道（RGB），输出32个通道，卷积核大小3x3
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)  # 输出32个特征图
+        self.pool = nn.MaxPool2d(2, 2)  # 最大池化层，池化窗口大小2x2
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)  # 输出64个特征图
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)  # 输出128个特征图
+
+        # 全连接层，输入是卷积层输出展平后的结果，输出是5类的概率
+        self.fc1 = nn.Linear(128 * 16 * 16, 512)  # 展平后的大小是 128 * 16 * 16
+        self.fc2 = nn.Linear(512, 5)  # 输出5类分类结果
+
+    def forward(self, x):
+        # 卷积层 + ReLU 激活函数 + 池化
+        x = self.pool(F.relu(self.conv1(x)))  # 32个特征图
+        x = self.pool(F.relu(self.conv2(x)))  # 64个特征图
+        x = self.pool(F.relu(self.conv3(x)))  # 128个特征图
+        
+        # 展平操作
+        x = x.view(-1, 128 * 16 * 16)  # 展平为一维张量
+
+        # 全连接层
+        x = F.relu(self.fc1(x))  # 隐藏层
+        x = self.fc2(x)  # 输出层
+        
+        return x
+
+# 初始化模型
+model = CNNModel()
+
+# 定义损失函数和优化器
+criterion = nn.CrossEntropyLoss()  # 多分类交叉熵损失
+optimizer = optim.Adam(model.parameters(), lr=0.001)  # Adam优化器
+
+# 训练模型
+epochs = 15
+for epoch in range(epochs):
+    model.train()
+    total_loss = 0
+    correct = 0
+    total = 0
+
+    for images, labels in train_loader:
+        optimizer.zero_grad()  # 梯度清零
+        outputs = model(images)  # 前向传播
+        loss = criterion(outputs, labels)  # 计算损失
+        loss.backward()  # 反向传播
+        optimizer.step()  # 优化步骤
+
+        total_loss += loss.item()
+
+        # 计算准确率
+        _, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+    print(f"Epoch {epoch+1}, Loss: {total_loss/len(train_loader):.4f}, Accuracy: {correct/total:.4f}")
+
+# 评估模型
+model.eval()  # 设置为评估模式
+correct = 0
+total = 0
+
+# 初始化每个类别的正确预测数
+class_correct = {class_name: 0 for class_name in class_names}
+class_total = {class_name: 0 for class_name in class_names}
+
+with torch.no_grad():
+    for images, labels in test_loader:
+        outputs = model(images)
+        _, predicted = torch.max(outputs.data, 1)
+
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+        # 计算每个类别的准确率
+        for i in range(len(labels)):
+            label = labels[i]
+            if predicted[i] == label:
+                class_correct[class_names[label]] += 1
+            class_total[class_names[label]] += 1
+
+# 打印每个类别的准确率
+for class_name in class_names:
+    accuracy = class_correct[class_name] / class_total[class_name] if class_total[class_name] > 0 else 0
+    print(f"{class_name.capitalize()} Accuracy: {accuracy:.4f}")
+
+# 打印整体准确率
+print(f"Overall Accuracy: {correct / total:.4f}")
