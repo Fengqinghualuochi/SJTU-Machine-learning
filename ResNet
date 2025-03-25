@@ -1,0 +1,137 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F  # 导入 torch.nn.functional，便于使用激活函数等
+from torchvision import datasets, transforms, models
+from torch.utils.data import DataLoader, Subset
+from sklearn.model_selection import train_test_split
+from PIL import Image
+import time
+import matplotlib.pyplot as plt
+import os
+
+# 设置数据集路径
+data_dir = "flower_photos"  # 数据集路径
+
+# 定义数据变换
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),  # ResNet 要求输入大小为224x224
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # ResNet 预训练模型的标准化方式
+])
+
+# 加载数据集
+dataset = datasets.ImageFolder(root=data_dir, transform=transform)
+
+# 类别包括 5 种花卉：daisy, dandelion, roses, sunflowers, tulips
+class_names = ['daisy', 'dandelion', 'roses', 'sunflowers', 'tulips']
+class_to_idx = {name: i for i, name in enumerate(class_names)}
+
+# 获取五种花卉的所有数据索引
+data_indices = [i for i, (_, label) in enumerate(dataset.samples) if dataset.classes[label] in class_names]
+
+# 重新映射 labels
+new_labels = {dataset.class_to_idx[class_name]: idx for idx, class_name in enumerate(class_names)}
+
+# 自定义数据集
+class CustomSubset(torch.utils.data.Dataset):
+    def __init__(self, dataset, indices, label_map):
+        self.dataset = dataset
+        self.indices = indices
+        self.label_map = label_map
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        while True:
+            try:
+                image, label = self.dataset[self.indices[idx]]
+                return image, torch.tensor(self.label_map[label], dtype=torch.long)  # 分类标签为长整型
+            except (OSError, IOError):  # 发现损坏的图片后删除并跳过
+                corrupt_path = self.dataset.samples[self.indices[idx]][0]
+                print(f"Removing corrupted image during training: {corrupt_path}")
+                os.remove(corrupt_path)
+                idx = (idx + 1) % len(self.indices)  # 取下一张图片替代
+
+# 创建子集并重新映射 labels
+subset_dataset = CustomSubset(dataset, data_indices, new_labels)
+
+# 重新划分训练集和测试集
+train_idx, test_idx = train_test_split(range(len(subset_dataset)), test_size=0.2, random_state=42)
+train_subset = Subset(subset_dataset, train_idx)
+test_subset = Subset(subset_dataset, test_idx)
+
+# 重新创建 DataLoader
+train_loader = DataLoader(train_subset, batch_size=32, shuffle=True)
+test_loader = DataLoader(test_subset, batch_size=32, shuffle=False)
+
+# 加载 ResNet18 预训练模型
+model = models.resnet18(pretrained=True)
+
+# 冻结卷积层参数，防止在训练时更新预训练的卷积层
+for param in model.parameters():
+    param.requires_grad = False
+
+# 修改最后的全连接层，输出为5个类别
+model.fc = nn.Linear(512, 5)
+
+# 定义损失函数和优化器
+criterion = nn.CrossEntropyLoss()  # 多分类交叉熵损失
+optimizer = optim.Adam(model.fc.parameters(), lr=0.001)  # 只训练全连接层
+
+# 训练模型
+epochs = 10
+for epoch in range(epochs):
+    model.train()
+    total_loss = 0
+    correct = 0
+    total = 0
+
+    for images, labels in train_loader:
+        optimizer.zero_grad()  # 梯度清零
+        outputs = model(images)  # 前向传播
+        loss = criterion(outputs, labels)  # 计算损失
+        loss.backward()  # 反向传播
+        optimizer.step()  # 优化步骤
+
+        total_loss += loss.item()
+
+        # 计算准确率
+        _, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+    print(f"Epoch {epoch+1}, Loss: {total_loss/len(train_loader):.4f}, Accuracy: {correct/total:.4f}")
+
+# 评估模型
+model.eval()  # 设置为评估模式
+correct = 0
+total = 0
+
+# 初始化每个类别的正确预测数
+class_correct = {class_name: 0 for class_name in class_names}
+class_total = {class_name: 0 for class_name in class_names}
+
+with torch.no_grad():
+    for images, labels in test_loader:
+        outputs = model(images)
+        _, predicted = torch.max(outputs.data, 1)
+
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+        # 计算每个类别的准确率
+        for i in range(len(labels)):
+            label = labels[i]
+            if predicted[i] == label:
+                class_correct[class_names[label]] += 1
+            class_total[class_names[label]] += 1
+
+# 打印每个类别的准确率
+for class_name in class_names:
+    accuracy = class_correct[class_name] / class_total[class_name] if class_total[class_name] > 0 else 0
+    print(f"{class_name.capitalize()} Accuracy: {accuracy:.4f}")
+
+# 打印整体准确率
+print(f"Overall Accuracy: {correct / total:.4f}")
