@@ -1,0 +1,119 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+
+# 定义迷宫环境
+maze = np.array([
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0],
+    [0, 0, -1, -1, 0, -1, 0, 0, -1, -1, 0, -1],
+    [0, 0, 0, -1, 0, -1, -1, -1, -1, 0, 0, 0],
+    [-1, -1, 0, 0, 0, 0, -1, 0, -1, 0, -1, -1],
+    [0, -1, -1, -1, -1, 0, 0, 0, -1, 0, 0, 0],
+    [0, 0, 0, 0, -1, 0, -1, -1, -1, -1, -1, 0],
+    [0, 0, -1, 0, 0, 0, 0, -1, 0, 0, -1, 0],
+    [0, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 1],
+    [0, 0, -1, 0, 0, 0, 0, 0, 0, -1, 0, 0],
+    [0, 0, 0, 0, -1, 0, -1, 0, -1, -1, -1, 0],
+    [-1, 0, -1, -1, -1, 0, -1, 0, -1, 0, 0, 0],
+    [-1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, 0]
+])
+
+# 定义动作空间
+actions = ['up', 'down', 'left', 'right']
+
+# 初始化Q表
+q_table = np.zeros((maze.shape[0] * maze.shape[1], len(actions)))
+
+# 定义超参数
+learning_rate = 0.1
+discount_factor = 0.9
+epsilon = 0.1
+episodes = 1000
+
+# 获取状态索引
+def get_state_index(state):
+    return state[0] * maze.shape[1] + state[1]
+
+# 选择动作
+def choose_action(state):
+    if np.random.uniform(0, 1) < epsilon:
+        return np.random.choice(len(actions))
+    else:
+        state_index = get_state_index(state)
+        return np.argmax(q_table[state_index])
+
+# 更新Q表
+def update_q_table(state, action, reward, next_state):
+    state_index = get_state_index(state)
+    next_state_index = get_state_index(next_state)
+    q_table[state_index, action] = (1 - learning_rate) * q_table[state_index, action] + \
+                                   learning_rate * (reward + discount_factor * np.max(q_table[next_state_index]))
+
+# 训练智能体
+for episode in range(episodes):
+    state = [0, 0]
+    done = False
+    while not done:
+        action = choose_action(state)
+        if actions[action] == 'up':
+            next_state = [max(state[0] - 1, 0), state[1]]
+        elif actions[action] == 'down':
+            next_state = [min(state[0] + 1, maze.shape[0] - 1), state[1]]
+        elif actions[action] == 'left':
+            next_state = [state[0], max(state[1] - 1, 0)]
+        elif actions[action] == 'right':
+            next_state = [state[0], min(state[1] + 1, maze.shape[1] - 1)]
+
+        reward = maze[next_state[0], next_state[1]]
+        update_q_table(state, action, reward, next_state)
+        state = next_state
+
+        if reward == 1:
+            done = True
+
+# 测试智能体
+state = [0, 0]
+done = False
+path = [state.copy()]
+while not done:
+    action = np.argmax(q_table[get_state_index(state)])
+    if actions[action] == 'up':
+        state = [max(state[0] - 1, 0), state[1]]
+    elif actions[action] == 'down':
+        state = [min(state[0] + 1, maze.shape[0] - 1), state[1]]
+    elif actions[action] == 'left':
+        state = [state[0], max(state[1] - 1, 0)]
+    elif actions[action] == 'right':
+        state = [state[0], min(state[1] + 1, maze.shape[1] - 1)]
+
+    path.append(state.copy())
+    if maze[state[0], state[1]] == 1:
+        done = True
+
+print("找到的路径:", path)
+
+# 绘制迷宫图
+fig, ax = plt.subplots(figsize=(6, 6))
+cmap = mcolors.ListedColormap(['white', 'green', 'red', 'white'])
+bounds = [-1, 0, 1]
+norm = mcolors.BoundaryNorm(bounds, cmap.N)
+
+# 绘制迷宫
+ax.imshow(maze, cmap=cmap, norm=norm)
+
+# 标注起点和终点
+ax.text(0, 0, 'Start', ha='center', va='center', color='green', fontsize=12)
+ax.text(7, 11, 'Goal', ha='center', va='center', color='green', fontsize=12)
+
+# 标注障碍物
+for i in range(maze.shape[0]):
+    for j in range(maze.shape[1]):
+        if maze[i, j] == -1:
+            ax.text(j, i, '*', ha='center', va='center', color='red', fontsize=16)
+
+# 添加网格线
+ax.set_xticks(np.arange(-0.5, maze.shape[1], 1), minor=True)
+ax.set_yticks(np.arange(-0.5, maze.shape[0], 1), minor=True)
+ax.grid(which='minor', color='black', linestyle='-', linewidth=1)
+
+plt.show()
