@@ -91,29 +91,3 @@ while not done:
         done = True
 
 print("找到的路径:", path)
-
-# 绘制迷宫图
-fig, ax = plt.subplots(figsize=(6, 6))
-cmap = mcolors.ListedColormap(['white', 'green', 'red', 'white'])
-bounds = [-1, 0, 1]
-norm = mcolors.BoundaryNorm(bounds, cmap.N)
-
-# 绘制迷宫
-ax.imshow(maze, cmap=cmap, norm=norm)
-
-# 标注起点和终点
-ax.text(0, 0, 'Start', ha='center', va='center', color='green', fontsize=12)
-ax.text(7, 11, 'Goal', ha='center', va='center', color='green', fontsize=12)
-
-# 标注障碍物
-for i in range(maze.shape[0]):
-    for j in range(maze.shape[1]):
-        if maze[i, j] == -1:
-            ax.text(j, i, '*', ha='center', va='center', color='red', fontsize=16)
-
-# 添加网格线
-ax.set_xticks(np.arange(-0.5, maze.shape[1], 1), minor=True)
-ax.set_yticks(np.arange(-0.5, maze.shape[0], 1), minor=True)
-ax.grid(which='minor', color='black', linestyle='-', linewidth=1)
-
-plt.show()
